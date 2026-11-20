@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tapis live</title>
+<style>
+:root{--bg:#000;--fg:#fff;--card:#0d0d0d;--mut:#d4d8df;--line:#5a5f69;--btn:#fff;--btnfg:#000;
+--z1:#c9ced8;--z2:#38b6ff;--z3:#3dff85;--z4:#ffd60a;--z5:#ff5252;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+
+:root[data-theme="dark"]{--bg:#0e1013;--fg:#f1f2f4;--card:#181b20;--mut:#979ca6;--line:#2a2e35;--btn:#f1f2f4;--btnfg:#0e1013}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif}
+body{padding:12px;max-width:900px;margin:0 auto}
+h1{font-size:22px;margin:4px 0 10px;font-weight:600}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+button{font:inherit;font-size:20px;font-weight:600;padding:12px 18px;border-radius:10px;border:0;background:var(--btn);color:var(--btnfg)}
+button.sec{background:transparent;color:var(--fg);border:1px solid var(--line)}
+button:focus-visible,input:focus-visible{outline:3px solid var(--z2);outline-offset:2px}
+input{font:inherit;font-size:20px;width:80px;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--fg)}
+label{color:var(--mut);font-size:18px}
+#msg{color:var(--mut);font-size:18px;margin:8px 0;min-height:22px}
+.hero{background:var(--card);border-radius:14px;padding:10px 16px;margin:10px 0;border-left:10px solid var(--zc,var(--z1))}
+.lab{color:var(--mut);font-size:24px;font-weight:600}
+#zn{color:var(--zc,var(--fg));font-weight:700}
+#dr{color:var(--z4)}#pc{color:var(--z2)}#pa{color:var(--z3)}
+.big{font-size:clamp(88px,30vw,190px);line-height:.95;font-weight:700;font-variant-numeric:tabular-nums}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cell{background:var(--card);border-radius:14px;padding:10px 14px;border:2px solid var(--line)}
+.mid{font-size:clamp(44px,14vw,92px);line-height:1;font-weight:700;font-variant-numeric:tabular-nums}
+.unit{font-size:28px;color:var(--mut);font-weight:600}
+.hide{display:none}
+.bar{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:20px}
+.bar i{display:block;height:18px;border-radius:4px;min-width:2px}
+canvas{width:100%;height:170px;background:var(--card);border-radius:12px;display:block;margin:6px 0 12px}
+.sum{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:8px 0}
+</style>
+</head>
+<body>
+<h1>Tapis live</h1>
+<div class="row">
+  <label for="mx">FC max</label><input id="mx" type="number" inputmode="numeric" value="190" min="120" max="230">
+  <button id="go">Collega fascia</button>
+  <button id="pause" class="sec hide">Pausa</button>
+  <button id="stop" class="sec hide">Termina</button>
+</div>
+<div id="msg"></div>
+<div id="fr" class="hide cell" style="margin:8px 0"><div class="lab">Per il Bluetooth serve aprire questa pagina da sola. Tocca il link qui sotto, oppure copia l’indirizzo e incollalo nella barra di Bluefy.</div><p><a id="frl" target="_blank" rel="noopener" style="color:var(--z2);font-size:24px;font-weight:700">Apri a tutto schermo</a></p><input id="fru" readonly onclick="this.select()" style="width:100%;font-size:16px"></div>
+
+<div id="live" class="hide">
+  <div class="hero" id="hero"><div class="lab">Frequenza cardiaca</div><div><span class="big" id="hr">--</span><span class="unit"> bpm</span></div>
+  <div class="lab" id="zn">Zona --</div></div>
+  <div class="grid">
+    <div class="cell"><div class="lab">Deriva cardiaca</div><div><span class="mid" id="dr">--</span><span class="unit"> %</span></div><div class="lab" id="drn">serve almeno 10 min</div></div>
+    <div class="cell"><div class="lab">Tempo</div><div class="mid" id="tm">0:00</div></div>
+    <div class="cell"><div class="lab">Passo attuale</div><div><span class="mid" id="pc">--</span><span class="unit"> /km</span></div></div>
+    <div class="cell"><div class="lab">Passo medio</div><div><span class="mid" id="pa">--</span><span class="unit"> /km</span></div></div>
+  </div>
+</div>
+
+<div id="res" class="hide">
+  <h1>Riepilogo</h1>
+  <div class="sum" id="sum"></div>
+  <div class="lab">Commento sulla corsa</div><div class="cell" id="cm" style="font-size:22px;line-height:1.3;margin:6px 0 12px"></div>
+  <div class="lab">Frequenza cardiaca</div><canvas id="c1" width="800" height="340"></canvas>
+  <div class="lab">Passo (/km)</div><canvas id="c2" width="800" height="340"></canvas>
+  <div class="lab">Tempo nelle zone</div><div id="zb"></div>
+  <p><button id="again">Nuova corsa</button></p>
+</div>
+
+<script>
+var $=function(i){return document.getElementById(i)};
+var ZC=["--z1","--z2","--z3","--z4","--z5"];
+var data=[],hr=0,sp=0,t0=0,timer=null,dev=null,wl=null,maxHR=190,paused=false,pausedAt=0,pausedTotal=0;
+try{var s=localStorage.getItem("maxhr");if(s)$("mx").value=s}catch(e){}
+
+function zone(h){var p=h/maxHR;return p<.6?1:p<.7?2:p<.8?3:p<.9?4:5}
+function fmtT(s){s=Math.round(s);var m=Math.floor(s/60),r=s%60;return m+":"+(r<10?"0":"")+r}
+function fmtP(v){if(!v||v<.5)return "--";return fmtT(1000/v)}
+function avg(a){return a.length?a.reduce(function(x,y){return x+y},0)/a.length:0}
+function drift(){
+  var a=data.filter(function(d){return d.t>=300&&d.hr>0}).map(function(d){return d.hr});
+  if(a.length<300)return null;
+  var h=Math.floor(a.length/2),x=avg(a.slice(0,h)),y=avg(a.slice(h));
+  return (y-x)/x*100;
+}
+function msg(t){$("msg").textContent=t}
+
+function onHR(e){
+  var v=e.target.value,f=v.getUint8(0);
+  hr=(f&1)?v.getUint16(1,true):v.getUint8(1);
+}
+function onRSC(e){
+  var v=e.target.value;sp=v.getUint16(1,true)/256;
+}
+
+async function connect(){
+  if(!navigator.bluetooth){msg("Questo browser non supporta il Bluetooth. Su iPhone apri questa pagina con Bluefy.");return}
+  maxHR=parseInt($("mx").value)||190;
+  try{localStorage.setItem("maxhr",maxHR)}catch(e){}
+  try{
+    msg("Cerco la fascia…");
+    var framed=false;try{framed=window.top!==window.self}catch(e){framed=true}
+    var tm=setTimeout(function(){msg("Nessuna risposta dopo la scelta della fascia."+(framed?" La pagina è dentro un riquadro e Bluefy potrebbe bloccare il Bluetooth.":" Prova a chiudere Bluefy e riaprire il link."))},15000);
+    dev=await navigator.bluetooth.requestDevice({filters:[{services:[0x180D]}],optionalServices:[0x1814]});
+    clearTimeout(tm);
+    msg("Fascia scelta, mi collego…");
+    var srv=await dev.gatt.connect();
+    msg("Fascia collegata, cerco la frequenza cardiaca…");
+    var hs=await srv.getPrimaryService("heart_rate");
+    var hc=await hs.getCharacteristic("heart_rate_measurement");
+    hc.addEventListener("characteristicvaluechanged",onHR);
+    await hc.startNotifications();
+    msg("Ricevo la frequenza cardiaca…");
+    var pace="solo frequenza cardiaca (la fascia non trasmette il passo via Bluetooth)";
+    try{
+      var rs=await srv.getPrimaryService("running_speed_and_cadence");
+      var rc=await rs.getCharacteristic("rsc_measurement");
+      rc.addEventListener("characteristicvaluechanged",onRSC);
+      await rc.startNotifications();
+      pace="frequenza cardiaca e passo";
+    }catch(e){}
+    msg("Collegato: "+pace+".");
+    start();
+  }catch(err){clearTimeout(tm);msg("Connessione non riuscita: "+err.message)}
+}
+
+function start(){
+  data=[];hr=0;sp=0;t0=Date.now();paused=false;pausedTotal=0;$("pause").textContent="Pausa";
+  $("go").classList.add("hide");$("stop").classList.remove("hide");$("pause").classList.remove("hide");
+  $("live").classList.remove("hide");$("res").classList.add("hide");
+  try{navigator.wakeLock.request("screen").then(function(l){wl=l})}catch(e){}
+  timer=setInterval(tick,1000);
+}
+
+function tick(){
+  if(paused)return;
+  var t=(Date.now()-t0-pausedTotal)/1000;
+  data.push({t:t,hr:hr,sp:sp});
+  $("tm").textContent=fmtT(t);
+  if(hr>0){
+    var z=zone(hr);
+    $("hr").textContent=hr;
+    $("zn").textContent="Zona "+z+" · "+Math.round(hr/maxHR*100)+"% della FC max";
+    $("hero").style.setProperty("--zc","var("+ZC[z-1]+")");
+  }
+  var d=drift();
+  if(d===null){var m=Math.max(0,Math.ceil((600-t)/60));$("drn").textContent="disponibile tra circa "+m+" min"}
+  else{$("dr").textContent=(d>0?"+":"")+d.toFixed(1);$("drn").textContent="seconda metà vs prima (dopo 5 min)"}
+  var rec=data.slice(-5).map(function(x){return x.sp}).filter(function(x){return x>.5});
+  $("pc").textContent=fmtP(avg(rec));
+  var all=data.map(function(x){return x.sp}).filter(function(x){return x>.5});
+  $("pa").textContent=fmtP(avg(all));
+}
+
+function stop(){
+  clearInterval(timer);
+  try{if(wl)wl.release()}catch(e){}
+  try{if(dev&&dev.gatt.connected)dev.gatt.disconnect()}catch(e){}
+  $("live").classList.add("hide");$("stop").classList.add("hide");$("pause").classList.add("hide");$("res").classList.remove("hide");
+  summary();
+}
+
+function summary(){
+  var hs=data.filter(function(d){return d.hr>0}).map(function(d){return d.hr});
+  var ps=data.filter(function(d){return d.sp>.5}).map(function(d){return d.sp});
+  var dur=data.length?data[data.length-1].t:0,dd=drift();
+  var items=[["Durata",fmtT(dur)],["FC media",hs.length?Math.round(avg(hs))+" bpm":"--"],["FC massima",hs.length?Math.max.apply(null,hs)+" bpm":"--"],
+    ["Deriva cardiaca",dd===null?"n.d.":(dd>0?"+":"")+dd.toFixed(1)+" %"],["Passo medio",ps.length?fmtP(avg(ps))+" /km":"--"],
+    ["Distanza",ps.length?(avg(ps)*ps.length/1000).toFixed(2)+" km":"--"]];
+  $("sum").innerHTML=items.map(function(i){return '<div class="cell"><div class="lab">'+i[0]+'</div><div class="mid" style="font-size:44px">'+i[1]+'</div></div>'}).join("");
+  var cs=getComputedStyle(document.documentElement);
+  draw($("c1"),data.map(function(d){return d.hr||null}),cs.getPropertyValue("--z5"),false,cs);
+  draw($("c2"),data.map(function(d){return d.sp>.5?1000/d.sp:null}),cs.getPropertyValue("--z2"),true,cs);
+  var zt=[0,0,0,0,0];hs.forEach(function(h){zt[zone(h)-1]++});
+  var mx=Math.max.apply(null,zt.concat([1]));
+  $("zb").innerHTML=zt.map(function(n,i){return '<div class="bar"><span style="width:60px">Zona '+(i+1)+'</span><i style="width:'+Math.round(n/mx*55)+'%;background:var('+ZC[i]+')"></i><span>'+fmtT(n)+'</span></div>'}).join("");
+  comment(hs,ps,dur,dd,zt);
+}
+
+function blocks(){
+  var g=[];
+  data.forEach(function(d){var k=Math.floor(d.t/300);(g[k]=g[k]||[]).push(d)});
+  return g.map(function(b){
+    var h=b.filter(function(x){return x.hr>0}).map(function(x){return x.hr});
+    var s=b.filter(function(x){return x.sp>.5}).map(function(x){return x.sp});
+    return {fcMedia:h.length?Math.round(avg(h)):null,passo:s.length?fmtP(avg(s)):null}});
+}
+async function comment(hs,ps,dur,dd,zt){
+  var box=$("cm"),z=zt.indexOf(Math.max.apply(null,zt))+1;
+  var loc="Corsa di "+Math.round(dur/60)+" minuti"+(hs.length?", FC media "+Math.round(avg(hs))+" bpm, per lo più in zona "+z:"")+(dd===null?".":". Deriva cardiaca "+(dd>0?"+":"")+dd.toFixed(1)+"%.");
+  if(dur<60||!hs.length){box.textContent=loc;return}
+  box.textContent="Sto scrivendo il commento…";
+  try{
+    if(typeof claude==="undefined")throw 0;
+    var sm=await claude.use("sample");
+    if(!sm)throw 0;
+    var st={durataMin:Math.round(dur/60),fcMedia:Math.round(avg(hs)),fcMax:Math.max.apply(null,hs),fcMaxImpostata:maxHR,
+      derivaCardiacaPercento:dd===null?null:+dd.toFixed(1),minutiPerZona:zt.map(function(n){return Math.round(n/6)/10}),
+      passoMedioPerKm:ps.length?fmtP(avg(ps)):null,distanzaKm:ps.length?+(avg(ps)*ps.length/1000).toFixed(2):null,
+      blocchiDa5Min:blocks()};
+    var r=await sm("Sei un allenatore di corsa. Scrivi in italiano un commento di 3-4 frasi su questa corsa su tapis roulant, in stile riassunto di Strava: tono positivo, concreto, rivolto a chi ha corso (usa il tu). Commenta intensità, zone cardiache, deriva cardiaca e andamento nei blocchi da 5 minuti. Usa solo i dati forniti, senza inventare e senza consigli medici. Rispondi solo con il testo del commento, senza elenchi. Dati: "+JSON.stringify(st),{modelTier:"quick"});
+    box.textContent=r.text;
+  }catch(e){box.textContent=loc}
+}
+function draw(cv,vals,col,inv,cs){
+  var c=cv.getContext("2d"),W=cv.width,H=cv.height,P=34;
+  c.clearRect(0,0,W,H);
+  var v=vals.filter(function(x){return x!==null});
+  if(v.length<2){c.fillStyle=cs.getPropertyValue("--mut");c.font="24px sans-serif";c.fillText("Nessun dato",20,H/2);return}
+  var lo=Math.min.apply(null,v),hi=Math.max.apply(null,v);if(hi-lo<1){hi=lo+1}
+  if(inv&&hi>600)hi=600;
+  var n=vals.length;
+  c.strokeStyle=cs.getPropertyValue("--line");c.fillStyle=cs.getPropertyValue("--mut");c.font="22px sans-serif";c.lineWidth=1;
+  for(var g=0;g<=3;g++){var y=P/2+(H-P)*g/3;c.beginPath();c.moveTo(60,y);c.lineTo(W-10,y);c.stroke();
+    var val=hi-(hi-lo)*g/3;if(inv)val=lo+(hi-lo)*g/3;c.fillText(inv?fmtT(val):Math.round(val),4,y+7)}
+  c.strokeStyle=col;c.lineWidth=3;c.beginPath();var on=false;
+  vals.forEach(function(x,i){
+    if(x===null){on=false;return}
+    if(inv&&x>hi)x=hi;
+    var px=60+(W-70)*i/(n-1),f=(x-lo)/(hi-lo);if(inv)f=1-f;
+    var py=P/2+(H-P)*(1-f);
+    if(inv)py=P/2+(H-P)*(1-(1-(x-lo)/(hi-lo)));
+    if(!on){c.moveTo(px,py);on=true}else c.lineTo(px,py)});
+  c.stroke();
+}
+
+try{if(window.top!==window.self&&/^https?:/.test(location.href)){$("fr").classList.remove("hide");$("fru").value=location.href;$("frl").href=location.href}}catch(e){}
+$("go").onclick=connect;
+$("stop").onclick=stop;
+$("pause").onclick=function(){
+  if(!paused){paused=true;pausedAt=Date.now();$("pause").textContent="Riprendi";msg("In pausa: tempo e dati sono fermi.")}
+  else{pausedTotal+=Date.now()-pausedAt;paused=false;$("pause").textContent="Pausa";msg("")}
+};
+$("again").onclick=function(){$("res").classList.add("hide");$("go").classList.remove("hide");msg("")};
+if(!navigator.bluetooth)msg("Su iPhone apri questa pagina con il browser Bluefy: Safari non supporta il Bluetooth.");
+</script>
+</body>
+</html>

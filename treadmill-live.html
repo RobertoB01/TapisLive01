@@ -43,6 +43,7 @@ canvas{width:100%;height:170px;background:var(--card);border-radius:12px;display
   <label for="mx">FC max</label><input id="mx" type="number" inputmode="numeric" value="190" min="120" max="230">
   <button id="go">Collega fascia</button>
   <button id="go2" class="sec">Modo alternativo</button>
+  <button id="startb" class="hide">Avvia</button>
   <button id="pause" class="sec hide">Pausa</button>
   <button id="stop" class="sec hide">Termina</button>
 </div>
@@ -55,8 +56,8 @@ canvas{width:100%;height:170px;background:var(--card);border-radius:12px;display
   <div class="grid">
     <div class="cell"><div class="lab">Deriva cardiaca</div><div><span class="mid" id="dr">--</span><span class="unit"> %</span></div><div class="lab" id="drn">serve almeno 10 min</div></div>
     <div class="cell"><div class="lab">Tempo</div><div class="mid" id="tm">0:00</div></div>
-    <div class="cell"><div class="lab">Passo attuale</div><div><span class="mid" id="pc">--</span><span class="unit"> /km</span></div></div>
-    <div class="cell"><div class="lab">Passo medio</div><div><span class="mid" id="pa">--</span><span class="unit"> /km</span></div></div>
+    <div class="cell"><div class="lab">Velocità attuale</div><div><span class="mid" id="pc">--</span><span class="unit"> km/h</span></div></div>
+    <div class="cell"><div class="lab">Velocità media</div><div><span class="mid" id="pa">--</span><span class="unit"> km/h</span></div></div>
   </div>
 </div>
 
@@ -65,8 +66,8 @@ canvas{width:100%;height:170px;background:var(--card);border-radius:12px;display
   <div class="sum" id="sum"></div>
   <div class="lab">Commento sulla corsa</div><div class="cell" id="cm" style="font-size:22px;line-height:1.3;margin:6px 0 12px"></div>
   <div class="lab">Frequenza cardiaca</div><canvas id="c1" width="800" height="340"></canvas>
-  <div class="lab">Passo (/km)</div><canvas id="c2" width="800" height="340"></canvas>
-  <div class="lab">Tempo nelle zone</div><div id="zb"></div>
+  <div class="lab">Velocità (km/h)</div><canvas id="c2" width="800" height="340"></canvas>
+  <div class="lab">Zone cardiache</div><div id="zb"></div>
   <p><button id="again">Nuova corsa</button></p>
 </div>
 
@@ -79,6 +80,7 @@ try{var s=localStorage.getItem("maxhr");if(s)$("mx").value=s}catch(e){}
 function zone(h){var p=h/maxHR;return p<.6?1:p<.7?2:p<.8?3:p<.9?4:5}
 function fmtT(s){s=Math.round(s);var m=Math.floor(s/60),r=s%60;return m+":"+(r<10?"0":"")+r}
 function fmtP(v){if(!v||v<.5)return "--";return fmtT(1000/v)}
+function fmtV(v){return v>.5?(v*3.6).toFixed(1):"--"}
 function avg(a){return a.length?a.reduce(function(x,y){return x+y},0)/a.length:0}
 function drift(){
   var a=data.filter(function(d){return d.t>=300&&d.hr>0}).map(function(d){return d.hr});
@@ -88,9 +90,18 @@ function drift(){
 }
 function msg(t){$("msg").textContent=t}
 
+function showHR(){
+  if(hr>0){
+    var z=zone(hr);
+    $("hr").textContent=hr;
+    $("zn").textContent="Zona "+z+" · "+Math.round(hr/maxHR*100)+"% della FC max";
+    $("hero").style.setProperty("--zc","var("+ZC[z-1]+")");
+  }
+}
 function onHR(e){
   var v=e.target.value,f=v.getUint8(0);
   hr=(f&1)?v.getUint16(1,true):v.getUint8(1);
+  showHR();
 }
 function onRSC(e){
   var v=e.target.value;sp=v.getUint16(1,true)/256;
@@ -114,27 +125,32 @@ async function connect(alt){
     hc.addEventListener("characteristicvaluechanged",onHR);
     await hc.startNotifications();
     msg("Ricevo la frequenza cardiaca…");
-    var pace="solo frequenza cardiaca (la fascia non trasmette il passo via Bluetooth)";
+    var pace="solo frequenza cardiaca (velocità non disponibile via Bluetooth)";
     try{
       var rs=await srv.getPrimaryService("running_speed_and_cadence");
       var rc=await rs.getCharacteristic("rsc_measurement");
       rc.addEventListener("characteristicvaluechanged",onRSC);
       await rc.startNotifications();
-      pace="frequenza cardiaca e passo";
+      pace="frequenza cardiaca e velocità";
     }catch(e){}
-    msg("Collegato: "+pace+".");
+    msg("Collegato: "+pace+". Premi Avvia quando inizi a correre.");
     start();
   }catch(err){clearTimeout(tm);var dt=(err&&(err.name||err.message))?((err.name||"")+" "+(err.message||"")):("codice "+String(err));msg("Connessione non riuscita ("+step+"): "+dt.trim())}
 }
 
 function start(){
-  data=[];hr=0;sp=0;t0=Date.now();paused=false;pausedTotal=0;$("pause").textContent="Pausa";
-  $("go").classList.add("hide");$("go2").classList.add("hide");$("stop").classList.remove("hide");$("pause").classList.remove("hide");
+  data=[];sp=0;paused=false;pausedTotal=0;$("pause").textContent="Pausa";$("tm").textContent="0:00";$("startb").classList.remove("hide");
+  $("go").classList.add("hide");$("go2").classList.add("hide");$("stop").classList.remove("hide");
   $("live").classList.remove("hide");$("res").classList.add("hide");
   try{navigator.wakeLock.request("screen").then(function(l){wl=l})}catch(e){}
-  timer=setInterval(tick,1000);
+  showHR();
 }
 
+function startRun(){
+  data=[];t0=Date.now();pausedTotal=0;paused=false;
+  $("startb").classList.add("hide");$("pause").classList.remove("hide");msg("");
+  clearInterval(timer);timer=setInterval(tick,1000);
+}
 function tick(){
   if(paused)return;
   var t=(Date.now()-t0-pausedTotal)/1000;
@@ -150,16 +166,16 @@ function tick(){
   if(d===null){var m=Math.max(0,Math.ceil((600-t)/60));$("drn").textContent="disponibile tra circa "+m+" min"}
   else{$("dr").textContent=(d>0?"+":"")+d.toFixed(1);$("drn").textContent="seconda metà vs prima (dopo 5 min)"}
   var rec=data.slice(-5).map(function(x){return x.sp}).filter(function(x){return x>.5});
-  $("pc").textContent=fmtP(avg(rec));
+  $("pc").textContent=fmtV(avg(rec));
   var all=data.map(function(x){return x.sp}).filter(function(x){return x>.5});
-  $("pa").textContent=fmtP(avg(all));
+  $("pa").textContent=fmtV(avg(all));
 }
 
 function stop(){
   clearInterval(timer);
   try{if(wl)wl.release()}catch(e){}
   try{if(dev&&dev.gatt.connected)dev.gatt.disconnect()}catch(e){}
-  $("live").classList.add("hide");$("stop").classList.add("hide");$("pause").classList.add("hide");$("res").classList.remove("hide");
+  $("live").classList.add("hide");$("stop").classList.add("hide");$("pause").classList.add("hide");$("startb").classList.add("hide");$("res").classList.remove("hide");
   summary();
 }
 
@@ -168,15 +184,15 @@ function summary(){
   var ps=data.filter(function(d){return d.sp>.5}).map(function(d){return d.sp});
   var dur=data.length?data[data.length-1].t:0,dd=drift();
   var items=[["Durata",fmtT(dur)],["FC media",hs.length?Math.round(avg(hs))+" bpm":"--"],["FC massima",hs.length?Math.max.apply(null,hs)+" bpm":"--"],
-    ["Deriva cardiaca",dd===null?"n.d.":(dd>0?"+":"")+dd.toFixed(1)+" %"],["Passo medio",ps.length?fmtP(avg(ps))+" /km":"--"],
+    ["Deriva cardiaca",dd===null?"n.d.":(dd>0?"+":"")+dd.toFixed(1)+" %"],["Velocità media",ps.length?fmtV(avg(ps))+" km/h":"--"],
     ["Distanza",ps.length?(avg(ps)*ps.length/1000).toFixed(2)+" km":"--"]];
   $("sum").innerHTML=items.map(function(i){return '<div class="cell"><div class="lab">'+i[0]+'</div><div class="mid" style="font-size:44px">'+i[1]+'</div></div>'}).join("");
   var cs=getComputedStyle(document.documentElement);
   draw($("c1"),data.map(function(d){return d.hr||null}),cs.getPropertyValue("--z5"),false,cs);
-  draw($("c2"),data.map(function(d){return d.sp>.5?1000/d.sp:null}),cs.getPropertyValue("--z2"),true,cs);
+  draw($("c2"),data.map(function(d){return d.sp>.5?d.sp*3.6:null}),cs.getPropertyValue("--z2"),false,cs);
   var zt=[0,0,0,0,0];hs.forEach(function(h){zt[zone(h)-1]++});
   var mx=Math.max.apply(null,zt.concat([1]));
-  $("zb").innerHTML=zt.map(function(n,i){return '<div class="bar"><span style="width:60px">Zona '+(i+1)+'</span><i style="width:'+Math.round(n/mx*55)+'%;background:var('+ZC[i]+')"></i><span>'+fmtT(n)+'</span></div>'}).join("");
+  $("zb").innerHTML=zt.map(function(n,i){return '<div class="bar"><span style="width:60px">Zona '+(i+1)+'</span><i style="width:'+Math.round(n/mx*55)+'%;background:var('+ZC[i]+')"></i><span>'+fmtT(n)+'</span></div>'}).reverse().join("");
   comment(hs,ps,dur,dd,zt);
 }
 
@@ -186,7 +202,7 @@ function blocks(){
   return g.map(function(b){
     var h=b.filter(function(x){return x.hr>0}).map(function(x){return x.hr});
     var s=b.filter(function(x){return x.sp>.5}).map(function(x){return x.sp});
-    return {fcMedia:h.length?Math.round(avg(h)):null,passo:s.length?fmtP(avg(s)):null}});
+    return {fcMedia:h.length?Math.round(avg(h)):null,velocitaKmh:s.length?fmtV(avg(s)):null}});
 }
 async function comment(hs,ps,dur,dd,zt){
   var box=$("cm"),z=zt.indexOf(Math.max.apply(null,zt))+1;
@@ -199,7 +215,7 @@ async function comment(hs,ps,dur,dd,zt){
     if(!sm)throw 0;
     var st={durataMin:Math.round(dur/60),fcMedia:Math.round(avg(hs)),fcMax:Math.max.apply(null,hs),fcMaxImpostata:maxHR,
       derivaCardiacaPercento:dd===null?null:+dd.toFixed(1),minutiPerZona:zt.map(function(n){return Math.round(n/6)/10}),
-      passoMedioPerKm:ps.length?fmtP(avg(ps)):null,distanzaKm:ps.length?+(avg(ps)*ps.length/1000).toFixed(2):null,
+      velocitaMediaKmh:ps.length?fmtV(avg(ps)):null,distanzaKm:ps.length?+(avg(ps)*ps.length/1000).toFixed(2):null,
       blocchiDa5Min:blocks()};
     var r=await sm("Sei un allenatore di corsa. Scrivi in italiano un commento di 3-4 frasi su questa corsa su tapis roulant, in stile riassunto di Strava: tono positivo, concreto, rivolto a chi ha corso (usa il tu). Commenta intensità, zone cardiache, deriva cardiaca e andamento nei blocchi da 5 minuti. Usa solo i dati forniti, senza inventare e senza consigli medici. Rispondi solo con il testo del commento, senza elenchi. Dati: "+JSON.stringify(st),{modelTier:"quick"});
     box.textContent=r.text;
@@ -215,7 +231,7 @@ function draw(cv,vals,col,inv,cs){
   var n=vals.length;
   c.strokeStyle=cs.getPropertyValue("--line");c.fillStyle=cs.getPropertyValue("--mut");c.font="22px sans-serif";c.lineWidth=1;
   for(var g=0;g<=3;g++){var y=P/2+(H-P)*g/3;c.beginPath();c.moveTo(60,y);c.lineTo(W-10,y);c.stroke();
-    var val=hi-(hi-lo)*g/3;if(inv)val=lo+(hi-lo)*g/3;c.fillText(inv?fmtT(val):Math.round(val),4,y+7)}
+    var val=hi-(hi-lo)*g/3;if(inv)val=lo+(hi-lo)*g/3;c.fillText(inv?fmtT(val):(hi<40?val.toFixed(1):Math.round(val)),4,y+7)}
   c.strokeStyle=col;c.lineWidth=3;c.beginPath();var on=false;
   vals.forEach(function(x,i){
     if(x===null){on=false;return}
@@ -231,6 +247,7 @@ try{if(window.top!==window.self&&/^https?:/.test(location.href)){$("fr").classLi
 $("go").onclick=function(){connect(false)};
 $("go2").onclick=function(){connect(true)};
 $("stop").onclick=stop;
+$("startb").onclick=startRun;
 $("pause").onclick=function(){
   if(!paused){paused=true;pausedAt=Date.now();$("pause").textContent="Riprendi";msg("In pausa: tempo e dati sono fermi.")}
   else{pausedTotal+=Date.now()-pausedAt;paused=false;$("pause").textContent="Pausa";msg("")}

@@ -42,6 +42,7 @@ canvas{width:100%;height:170px;background:var(--card);border-radius:12px;display
 <div class="row">
   <label for="mx">FC max</label><input id="mx" type="number" inputmode="numeric" value="190" min="120" max="230">
   <button id="go">Collega fascia</button>
+  <button id="go2" class="sec">Modo alternativo</button>
   <button id="pause" class="sec hide">Pausa</button>
   <button id="stop" class="sec hide">Termina</button>
 </div>
@@ -95,7 +96,7 @@ function onRSC(e){
   var v=e.target.value;sp=v.getUint16(1,true)/256;
 }
 
-async function connect(){
+async function connect(alt){
   if(!navigator.bluetooth){msg("Questo browser non supporta il Bluetooth. Su iPhone apri questa pagina con Bluefy.");return}
   maxHR=parseInt($("mx").value)||190;
   try{localStorage.setItem("maxhr",maxHR)}catch(e){}
@@ -103,7 +104,7 @@ async function connect(){
     msg("Cerco la fascia…");
     var step="scelta fascia";var framed=false;try{framed=window.top!==window.self}catch(e){framed=true}
     var tm=setTimeout(function(){msg("Nessuna risposta dopo la scelta della fascia."+(framed?" La pagina è dentro un riquadro e Bluefy potrebbe bloccare il Bluetooth.":" Prova a chiudere Bluefy e riaprire il link."))},15000);
-    dev=await navigator.bluetooth.requestDevice({filters:[{services:[0x180D]}],optionalServices:[0x1814]});
+    dev=await navigator.bluetooth.requestDevice(alt?{acceptAllDevices:true,optionalServices:["heart_rate","running_speed_and_cadence"]}:{filters:[{services:["heart_rate"]}],optionalServices:["running_speed_and_cadence"]});
     clearTimeout(tm);
     step="collegamento";msg("Fascia scelta, mi collego…");
     var srv=await dev.gatt.connect();
@@ -123,12 +124,12 @@ async function connect(){
     }catch(e){}
     msg("Collegato: "+pace+".");
     start();
-  }catch(err){clearTimeout(tm);var dt=(err&&(err.name||err.message))?((err.name||"")+" "+(err.message||"")):String(err);msg("Connessione non riuscita ("+step+"): "+dt.trim())}
+  }catch(err){clearTimeout(tm);var dt=(err&&(err.name||err.message))?((err.name||"")+" "+(err.message||"")):("codice "+String(err));msg("Connessione non riuscita ("+step+"): "+dt.trim())}
 }
 
 function start(){
   data=[];hr=0;sp=0;t0=Date.now();paused=false;pausedTotal=0;$("pause").textContent="Pausa";
-  $("go").classList.add("hide");$("stop").classList.remove("hide");$("pause").classList.remove("hide");
+  $("go").classList.add("hide");$("go2").classList.add("hide");$("stop").classList.remove("hide");$("pause").classList.remove("hide");
   $("live").classList.remove("hide");$("res").classList.add("hide");
   try{navigator.wakeLock.request("screen").then(function(l){wl=l})}catch(e){}
   timer=setInterval(tick,1000);
@@ -227,13 +228,14 @@ function draw(cv,vals,col,inv,cs){
 }
 
 try{if(window.top!==window.self&&/^https?:/.test(location.href)){$("fr").classList.remove("hide");$("fru").value=location.href;$("frl").href=location.href}}catch(e){}
-$("go").onclick=connect;
+$("go").onclick=function(){connect(false)};
+$("go2").onclick=function(){connect(true)};
 $("stop").onclick=stop;
 $("pause").onclick=function(){
   if(!paused){paused=true;pausedAt=Date.now();$("pause").textContent="Riprendi";msg("In pausa: tempo e dati sono fermi.")}
   else{pausedTotal+=Date.now()-pausedAt;paused=false;$("pause").textContent="Pausa";msg("")}
 };
-$("again").onclick=function(){$("res").classList.add("hide");$("go").classList.remove("hide");msg("")};
+$("again").onclick=function(){$("res").classList.add("hide");$("go").classList.remove("hide");$("go2").classList.remove("hide");msg("")};
 if(!navigator.bluetooth)msg("Su iPhone apri questa pagina con il browser Bluefy: Safari non supporta il Bluetooth.");
 </script>
 </body>

@@ -17,6 +17,7 @@ h1{font-size:22px;margin:4px 0 10px;font-weight:600}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 button{font:inherit;font-size:20px;font-weight:600;padding:12px 18px;border-radius:10px;border:0;background:var(--btn);color:var(--btnfg)}
 button.sec{background:transparent;color:var(--fg);border:1px solid var(--line)}
+.row button{flex:1 1 0;padding:12px 6px;font-size:18px;white-space:nowrap}
 button:focus-visible,input:focus-visible{outline:3px solid var(--z2);outline-offset:2px}
 input{font:inherit;font-size:20px;width:80px;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--fg)}
 label{color:var(--mut);font-size:18px}
@@ -41,6 +42,8 @@ canvas{width:100%;height:170px;background:var(--card);border-radius:12px;display
 <h1>Tapis live</h1>
 <div class="row">
   <label for="mx">FC max</label><input id="mx" type="number" inputmode="numeric" value="190" min="120" max="230">
+  </div>
+<div class="row" style="margin-top:8px">
   <button id="go">Collega fascia</button>
   <button id="go2" class="sec">Modo alternativo</button>
   <button id="startb" class="hide">Avvia</button>

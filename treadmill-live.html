@@ -12,25 +12,27 @@ box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:en
 :root[data-theme="dark"]{--bg:#0e1013;--fg:#f1f2f4;--card:#181b20;--mut:#979ca6;--line:#2a2e35;--btn:#f1f2f4;--btnfg:#0e1013}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--fg);font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif}
-body{padding:12px;max-width:900px;margin:0 auto}
+body{padding:12px 12px 96px;max-width:900px;margin:0 auto}
 h1{font-size:22px;margin:4px 0 10px;font-weight:600}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 button{font:inherit;font-size:20px;font-weight:600;padding:12px 18px;border-radius:10px;border:0;background:var(--btn);color:var(--btnfg)}
 button.sec{background:transparent;color:var(--fg);border:1px solid var(--line)}
-.row button{flex:1 1 0;padding:12px 6px;font-size:18px;white-space:nowrap}
+.row button{flex:1 1 0;padding:clamp(12px,2vh,22px) 6px;font-size:clamp(18px,2.8vh,26px);white-space:nowrap}
+#ctl{position:fixed;left:0;right:0;bottom:0;max-width:900px;margin:0 auto;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));background:var(--bg);border-top:2px solid var(--line);z-index:5}
+#ctl.hide{display:none}
 button:focus-visible,input:focus-visible{outline:3px solid var(--z2);outline-offset:2px}
 input{font:inherit;font-size:20px;width:80px;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--fg)}
 label{color:var(--mut);font-size:18px}
 #msg{color:var(--mut);font-size:18px;margin:8px 0;min-height:22px}
 .hero{background:var(--card);border-radius:14px;padding:10px 16px;margin:10px 0;border-left:10px solid var(--zc,var(--z1))}
-.lab{color:var(--mut);font-size:24px;font-weight:600}
+.lab{color:var(--mut);font-size:clamp(17px,2.6vh,26px);font-weight:600}
 #zn{color:var(--zc,var(--fg));font-weight:700}
 #dr{color:var(--z4)}#pc{color:var(--z2)}#pa{color:var(--z3)}
-.big{font-size:clamp(88px,30vw,190px);line-height:.95;font-weight:700;font-variant-numeric:tabular-nums}
+.big{font-size:clamp(64px,min(26vw,15vh),220px);line-height:.95;font-weight:700;font-variant-numeric:tabular-nums}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .cell{background:var(--card);border-radius:14px;padding:10px 14px;border:2px solid var(--line)}
-.mid{font-size:clamp(44px,14vw,92px);line-height:1;font-weight:700;font-variant-numeric:tabular-nums}
-.unit{font-size:28px;color:var(--mut);font-weight:600}
+.mid{font-size:clamp(38px,min(12vw,7.5vh),110px);line-height:1;font-weight:700;font-variant-numeric:tabular-nums}
+.unit{font-size:clamp(18px,3vh,32px);color:var(--mut);font-weight:600}
 .hide{display:none}
 .bar{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:20px}
 .bar i{display:block;height:18px;border-radius:4px;min-width:2px}
@@ -39,15 +41,16 @@ canvas{width:100%;height:170px;background:var(--card);border-radius:12px;display
 </style>
 </head>
 <body>
-<h1>Tapis live</h1>
-<div class="row">
+<h1 id="ttl">Tapis live</h1>
+<div class="row" id="top">
   <label for="mx">FC max</label><input id="mx" type="number" inputmode="numeric" value="190" min="120" max="230">
   </div>
-<div class="row" style="margin-top:8px">
+<div class="row" id="ctl">
   <button id="go">Collega fascia</button>
-  <button id="go2" class="sec">Modo alternativo</button>
+  <button id="go2" class="sec">Altre fasce</button>
   <button id="startb" class="hide">Avvia</button>
   <button id="pause" class="sec hide">Pausa</button>
+  <button id="lap" class="sec hide">Lap</button>
   <button id="stop" class="sec hide">Termina</button>
 </div>
 <div id="msg"></div>
@@ -71,6 +74,7 @@ canvas{width:100%;height:170px;background:var(--card);border-radius:12px;display
   <div class="lab">Frequenza cardiaca</div><canvas id="c1" width="800" height="340"></canvas>
   <div class="lab">Velocità (km/h)</div><canvas id="c2" width="800" height="340"></canvas>
   <div class="lab">Zone cardiache</div><div id="zb"></div>
+  <div id="lapsbox"></div>
   <p><button id="again">Nuova corsa</button></p>
 </div>
 
@@ -118,7 +122,7 @@ async function connect(alt){
     msg("Cerco la fascia…");
     var step="scelta fascia";var framed=false;try{framed=window.top!==window.self}catch(e){framed=true}
     var tm=setTimeout(function(){msg("Nessuna risposta dopo la scelta della fascia."+(framed?" La pagina è dentro un riquadro e Bluefy potrebbe bloccare il Bluetooth.":" Prova a chiudere Bluefy e riaprire il link."))},15000);
-    dev=await navigator.bluetooth.requestDevice(alt?{acceptAllDevices:true,optionalServices:["heart_rate","running_speed_and_cadence"]}:{filters:[{services:["heart_rate"]}],optionalServices:["running_speed_and_cadence"]});
+    dev=await navigator.bluetooth.requestDevice(alt?{filters:[{services:["heart_rate"]},{namePrefix:"HRM"},{namePrefix:"Polar"},{namePrefix:"TICKR"},{namePrefix:"Wahoo"},{namePrefix:"Coospo"},{namePrefix:"Magene"},{namePrefix:"Garmin"}],optionalServices:["heart_rate","running_speed_and_cadence"]}:{filters:[{services:["heart_rate"]}],optionalServices:["running_speed_and_cadence"]});
     clearTimeout(tm);
     step="collegamento";msg("Fascia scelta, mi collego…");
     var srv=await dev.gatt.connect();
@@ -142,15 +146,35 @@ async function connect(alt){
 }
 
 function start(){
-  data=[];sp=0;paused=false;pausedTotal=0;$("pause").textContent="Pausa";$("tm").textContent="0:00";$("startb").classList.remove("hide");
+  data=[];sp=0;paused=false;pausedTotal=0;$("pause").textContent="Pausa";$("tm").textContent="0:00";$("startb").classList.remove("hide");$("ttl").classList.add("hide");$("top").classList.add("hide");
   $("go").classList.add("hide");$("go2").classList.add("hide");$("stop").classList.remove("hide");
   $("live").classList.remove("hide");$("res").classList.add("hide");
   try{navigator.wakeLock.request("screen").then(function(l){wl=l})}catch(e){}
   showHR();
 }
 
+var laps=[],lapStart=0;
+function mkLap(a,b,n){
+  var seg=data.slice(a,b);
+  var h=seg.filter(function(x){return x.hr>0}).map(function(x){return x.hr});
+  var s=seg.filter(function(x){return x.sp>.5}).map(function(x){return x.sp});
+  var tEnd=seg[seg.length-1].t,tBeg=a>0?data[a-1].t:0;
+  return {n:n,dur:tEnd-tBeg,fc:h.length?Math.round(avg(h)):"--",v:s.length?fmtV(avg(s)):"--"};
+}
+function doLap(){
+  if(paused||data.length<=lapStart)return;
+  var l=mkLap(lapStart,data.length,laps.length+1);
+  laps.push(l);lapStart=data.length;
+  msg("Giro "+l.n+": "+fmtT(l.dur)+" · FC "+l.fc+" · "+l.v+" km/h");
+}
+function showLaps(){
+  var L=laps.slice();
+  if(L.length&&data.length-lapStart>=5)L.push(mkLap(lapStart,data.length,L.length+1));
+  $("lapsbox").innerHTML=L.length?'<div class="lab">Giri (lap)</div>'+L.map(function(l){return '<div class="bar"><span style="width:80px">Giro '+l.n+'</span><span>'+fmtT(l.dur)+' · FC '+l.fc+' · '+l.v+' km/h</span></div>'}).join(""):"";
+}
 function startRun(){
-  data=[];t0=Date.now();pausedTotal=0;paused=false;
+  data=[];laps=[];lapStart=0;t0=Date.now();pausedTotal=0;paused=false;
+  $("lap").classList.remove("hide");
   $("startb").classList.add("hide");$("pause").classList.remove("hide");msg("");
   clearInterval(timer);timer=setInterval(tick,1000);
 }
@@ -178,7 +202,7 @@ function stop(){
   clearInterval(timer);
   try{if(wl)wl.release()}catch(e){}
   try{if(dev&&dev.gatt.connected)dev.gatt.disconnect()}catch(e){}
-  $("live").classList.add("hide");$("stop").classList.add("hide");$("pause").classList.add("hide");$("startb").classList.add("hide");$("res").classList.remove("hide");
+  $("live").classList.add("hide");$("stop").classList.add("hide");$("pause").classList.add("hide");$("startb").classList.add("hide");$("lap").classList.add("hide");$("ctl").classList.add("hide");$("res").classList.remove("hide");
   summary();
 }
 
@@ -196,7 +220,7 @@ function summary(){
   var zt=[0,0,0,0,0];hs.forEach(function(h){zt[zone(h)-1]++});
   var mx=Math.max.apply(null,zt.concat([1]));
   $("zb").innerHTML=zt.map(function(n,i){return '<div class="bar"><span style="width:60px">Zona '+(i+1)+'</span><i style="width:'+Math.round(n/mx*55)+'%;background:var('+ZC[i]+')"></i><span>'+fmtT(n)+'</span></div>'}).reverse().join("");
-  comment(hs,ps,dur,dd,zt);
+  showLaps();comment(hs,ps,dur,dd,zt);
 }
 
 function blocks(){
@@ -251,11 +275,12 @@ $("go").onclick=function(){connect(false)};
 $("go2").onclick=function(){connect(true)};
 $("stop").onclick=stop;
 $("startb").onclick=startRun;
+$("lap").onclick=doLap;
 $("pause").onclick=function(){
   if(!paused){paused=true;pausedAt=Date.now();$("pause").textContent="Riprendi";msg("In pausa: tempo e dati sono fermi.")}
   else{pausedTotal+=Date.now()-pausedAt;paused=false;$("pause").textContent="Pausa";msg("")}
 };
-$("again").onclick=function(){$("res").classList.add("hide");$("go").classList.remove("hide");$("go2").classList.remove("hide");msg("")};
+$("again").onclick=function(){$("res").classList.add("hide");$("go").classList.remove("hide");$("go2").classList.remove("hide");$("ctl").classList.remove("hide");$("ttl").classList.remove("hide");$("top").classList.remove("hide");msg("")};
 if(!navigator.bluetooth)msg("Su iPhone apri questa pagina con il browser Bluefy: Safari non supporta il Bluetooth.");
 </script>
 </body>
